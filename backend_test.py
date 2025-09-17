@@ -511,16 +511,21 @@ class BackendTester:
     
     def run_all_tests(self):
         """Run all backend tests"""
-        print("🚀 Starting Comprehensive Backend Testing")
+        print("🚀 Starting Comprehensive Backend Testing - Focus on Mock Authentication")
         print(f"Testing against: {BASE_URL}")
         print("=" * 60)
         
         # Initialize test data
         self.test_content_hashing()
         
-        # Test all components
-        self.test_api_endpoints_availability()
+        # Test mock authentication system first (main focus)
+        self.test_mock_authentication_system()
+        self.test_session_verification()
+        self.test_protected_endpoints_with_auth()
         self.test_authentication_endpoints()
+        
+        # Test other components
+        self.test_api_endpoints_availability()
         self.test_multi_level_uuid_system()
         self.test_transcript_request_api_unauthenticated()
         self.test_issuer_validation_api_unauthenticated()
