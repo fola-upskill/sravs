@@ -52,6 +52,13 @@ const Login = () => {
   const location = useLocation();
   const { setUser, checkAuth } = useAuth();
   const [processing, setProcessing] = useState(false);
+  const [showMockLogin, setShowMockLogin] = useState(false);
+  const [mockFormData, setMockFormData] = useState({
+    email: '',
+    name: '',
+    role: 'student',
+    university: ''
+  });
 
   useEffect(() => {
     const processAuth = async () => {
@@ -93,6 +100,25 @@ const Login = () => {
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
 
+  const handleMockLogin = async (e) => {
+    e.preventDefault();
+    setProcessing(true);
+    
+    try {
+      const response = await axios.post(`${API}/auth/mock-login`, mockFormData, { withCredentials: true });
+      
+      // Set httpOnly cookie
+      document.cookie = `session_token=${response.data.session_token}; path=/; secure; samesite=none; max-age=${7 * 24 * 60 * 60}`;
+      
+      setUser(response.data.user);
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Mock login error:', error);
+      alert('Login failed: ' + (error.response?.data?.detail || error.message));
+      setProcessing(false);
+    }
+  };
+
   if (processing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
@@ -109,25 +135,107 @@ const Login = () => {
           <p className="text-gray-600">Secure transcript verification system</p>
         </div>
         
-        <div className="space-y-6">
-          <div className="text-center">
-            <button
-              onClick={handleLogin}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-300"
-            >
-              Login with Google
-            </button>
+        {!showMockLogin ? (
+          <div className="space-y-6">
+            <div className="text-center">
+              <button
+                onClick={handleLogin}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 mb-3"
+              >
+                Login with Google
+              </button>
+              <button
+                onClick={() => setShowMockLogin(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-300"
+              >
+                Use Mock Login (Testing)
+              </button>
+            </div>
+            
+            <div className="text-sm text-gray-500 text-center">
+              <p>Multi-level UUID verification system for:</p>
+              <ul className="mt-2 space-y-1">
+                <li>• Students requesting transcripts</li>
+                <li>• Universities issuing verification</li>
+                <li>• Institutions receiving verified documents</li>
+              </ul>
+            </div>
           </div>
-          
-          <div className="text-sm text-gray-500 text-center">
-            <p>Multi-level UUID verification system for:</p>
-            <ul className="mt-2 space-y-1">
-              <li>• Students requesting transcripts</li>
-              <li>• Universities issuing verification</li>
-              <li>• Institutions receiving verified documents</li>
-            </ul>
+        ) : (
+          <div className="space-y-6">
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Mock Login for Testing</h3>
+              <p className="text-sm text-gray-600">Create or login with any user role</p>
+            </div>
+            
+            <form onSubmit={handleMockLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={mockFormData.email}
+                  onChange={(e) => setMockFormData({...mockFormData, email: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter email address"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  required
+                  value={mockFormData.name}
+                  onChange={(e) => setMockFormData({...mockFormData, name: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter full name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  value={mockFormData.role}
+                  onChange={(e) => setMockFormData({...mockFormData, role: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="student">Student</option>
+                  <option value="issuer">Issuer (University Staff)</option>
+                  <option value="verifier">Verifier (Receiving Institution)</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">University (Optional)</label>
+                <input
+                  type="text"
+                  value={mockFormData.university}
+                  onChange={(e) => setMockFormData({...mockFormData, university: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter university name"
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  type="submit"
+                  disabled={processing}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-50"
+                >
+                  {processing ? 'Logging in...' : 'Login'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMockLogin(false)}
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300"
+                >
+                  Back to Main Login
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
