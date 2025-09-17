@@ -449,35 +449,7 @@ const Dashboard = () => {
         )}
 
         {activeTab === 'verification' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">UUID Verification</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter UUID to verify authenticity
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Enter UUID..."
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition duration-200">
-                    Verify
-                  </button>
-                </div>
-              </div>
-              <div className="text-sm text-gray-500">
-                <p>UUID verification provides:</p>
-                <ul className="mt-2 space-y-1 ml-4">
-                  <li>• Document authenticity confirmation</li>
-                  <li>• Complete audit trail visibility</li>
-                  <li>• Tamper detection through content hashing</li>
-                  <li>• Non-repudiation through multi-party validation</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          <UUIDVerificationTab />
         )}
       </main>
 
