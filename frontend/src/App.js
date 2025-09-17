@@ -554,6 +554,140 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
   );
 };
 
+// UUID Verification Component
+const UUIDVerificationTab = () => {
+  const [verificationInput, setVerificationInput] = useState('');
+  const [verificationResult, setVerificationResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleVerification = async () => {
+    if (!verificationInput.trim()) return;
+    
+    setLoading(true);
+    try {
+      // Try different UUID types
+      const types = ['student_request', 'issuer_validation', 'verifier_receipt'];
+      let result = null;
+      
+      for (const type of types) {
+        try {
+          const response = await axios.get(`${API}/verify/${type}/${verificationInput}`, { withCredentials: true });
+          if (response.data.verified) {
+            result = { ...response.data, type };
+            break;
+          }
+        } catch (error) {
+          // Continue to next type
+        }
+      }
+      
+      if (!result) {
+        result = { verified: false, message: "UUID not found or invalid" };
+      }
+      
+      setVerificationResult(result);
+    } catch (error) {
+      setVerificationResult({ 
+        verified: false, 
+        message: "Verification failed: " + (error.response?.data?.detail || error.message) 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">UUID Verification</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Enter UUID to verify authenticity
+            </label>
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={verificationInput}
+                onChange={(e) => setVerificationInput(e.target.value)}
+                placeholder="Enter UUID..."
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button 
+                onClick={handleVerification}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition duration-200 disabled:opacity-50"
+              >
+                {loading ? 'Verifying...' : 'Verify'}
+              </button>
+            </div>
+          </div>
+          
+          {verificationResult && (
+            <div className={`mt-4 p-4 rounded-lg border ${
+              verificationResult.verified 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <div className="flex items-center mb-2">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  verificationResult.verified
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {verificationResult.verified ? '✅ Verified' : '❌ Not Verified'}
+                </span>
+              </div>
+              
+              {verificationResult.verified && verificationResult.data && (
+                <div className="space-y-2">
+                  <div className="text-sm">
+                    <strong>Type:</strong> {verificationResult.type.replace('_', ' ').toUpperCase()}
+                  </div>
+                  {verificationResult.data.student_name && (
+                    <div className="text-sm">
+                      <strong>Student:</strong> {verificationResult.data.student_name}
+                    </div>
+                  )}
+                  {verificationResult.data.university_from && (
+                    <div className="text-sm">
+                      <strong>From:</strong> {verificationResult.data.university_from}
+                    </div>
+                  )}
+                  {verificationResult.data.university_to && (
+                    <div className="text-sm">
+                      <strong>To:</strong> {verificationResult.data.university_to}
+                    </div>
+                  )}
+                  <div className="text-sm">
+                    <strong>Created:</strong> {new Date(verificationResult.data.created_at || verificationResult.data.validated_at || verificationResult.data.received_at).toLocaleString()}
+                  </div>
+                </div>
+              )}
+              
+              {!verificationResult.verified && (
+                <div className="text-sm text-red-700">
+                  {verificationResult.message}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="text-sm text-gray-500">
+            <p>UUID verification provides:</p>
+            <ul className="mt-2 space-y-1 ml-4">
+              <li>• Document authenticity confirmation</li>
+              <li>• Complete audit trail visibility</li>
+              <li>• Tamper detection through content hashing</li>
+              <li>• Non-repudiation through multi-party validation</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
