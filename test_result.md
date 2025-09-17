@@ -297,11 +297,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Emergent Authentication Integration"
+    []
   stuck_tasks:
-    - "Emergent Authentication Integration"
+    []
   test_all: false
-  test_priority: "stuck_first"
+  test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
