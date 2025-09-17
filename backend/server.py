@@ -146,25 +146,79 @@ async def get_current_user(request: Request) -> Optional[User]:
     
     return User(**user)
 
-# Authentication endpoints
+# Mock Authentication endpoints for testing
+@api_router.post("/auth/mock-login")
+async def mock_login(request: Request):
+    """Mock login endpoint for testing - creates/gets user with specified role"""
+    try:
+        body = await request.json()
+        email = body.get("email", "")
+        name = body.get("name", "")
+        role = body.get("role", "student")
+        university = body.get("university", "")
+        
+        if not email or not name:
+            raise HTTPException(status_code=400, detail="Email and name are required")
+        
+        # Check if user exists
+        existing_user = await db.users.find_one({"email": email})
+        user_data = None
+        
+        if existing_user:
+            user_data = User(**existing_user)
+            # Update role and university if provided
+            if role or university:
+                await db.users.update_one(
+                    {"email": email},
+                    {"$set": {"role": role, "university": university}}
+                )
+                user_data.role = UserRole(role)
+                user_data.university = university
+        else:
+            # Create new user
+            new_user = User(
+                email=email,
+                name=name,
+                role=UserRole(role),
+                university=university
+            )
+            await db.users.insert_one(new_user.dict())
+            user_data = new_user
+        
+        # Create session
+        session_token = str(uuid.uuid4())
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        session = UserSession(
+            user_id=user_data.id,
+            session_token=session_token,
+            expires_at=expires_at
+        )
+        await db.user_sessions.insert_one(session.dict())
+        
+        return {
+            "user": user_data.dict(),
+            "session_token": session_token
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @api_router.get("/auth/session-data")
 async def get_session_data(request: Request):
-    """Process session_id from Emergent Auth and return user data"""
+    """Process session_id from Emergent Auth and return user data - MOCK VERSION"""
     session_id = request.headers.get("X-Session-ID")
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID required")
     
-    # Call Emergent Auth API
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid session")
-        
-        auth_data = response.json()
+    # Mock auth data - in real implementation this would call external service
+    if session_id == "mock_session_123":
+        auth_data = {
+            "email": "john.student@university.edu",
+            "name": "John Student",
+            "picture": "https://via.placeholder.com/150",
+            "session_token": str(uuid.uuid4())
+        }
+    else:
+        raise HTTPException(status_code=401, detail="Invalid session")
     
     # Check if user exists
     existing_user = await db.users.find_one({"email": auth_data["email"]})
