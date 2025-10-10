@@ -454,6 +454,10 @@ const Dashboard = () => {
         {activeTab === 'verification' && (
           <UUIDVerificationTab />
         )}
+
+        {activeTab === 'analytics' && user?.role !== 'student' && (
+          <AnalyticsDashboard user={user} />
+        )}
       </main>
 
       {/* Create Request Modal */}
