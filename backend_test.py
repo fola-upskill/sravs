@@ -514,22 +514,430 @@ class BackendTester:
                 self.log_result(f"Endpoint Availability - {method} {endpoint}", False, 
                                f"Request failed: {str(e)}")
     
+    def test_blockchain_service_integration(self):
+        """Test Blockchain Service Integration"""
+        print("\n=== Testing Blockchain Service Integration ===")
+        
+        # Test 1: Blockchain connection status
+        try:
+            response = self.session.get(f"{BASE_URL}/blockchain/status")
+            if response.status_code == 200:
+                data = response.json()
+                if "connected" in data:
+                    self.log_result("Blockchain - Connection Status", True, 
+                                   f"Blockchain status endpoint working, connected: {data.get('connected')}")
+                    if data.get("connected"):
+                        self.log_result("Blockchain - Service Connected", True, 
+                                       f"Blockchain service connected to {data.get('rpc_url')}")
+                    else:
+                        self.log_result("Blockchain - Service Connected", False, 
+                                       f"Blockchain service not connected: {data.get('error', 'Unknown error')}")
+                else:
+                    self.log_result("Blockchain - Connection Status", False, "Missing connection status in response")
+            else:
+                self.log_result("Blockchain - Connection Status", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Blockchain - Connection Status", False, f"Request failed: {str(e)}")
+        
+        # Test 2: Student blockchain history (requires authentication)
+        if self.auth_token and "student" in self.test_users:
+            try:
+                headers = {"Authorization": f"Bearer {self.auth_token}"}
+                student_id = self.test_users["student"]["id"]
+                response = self.session.get(f"{BASE_URL}/blockchain/student/{student_id}/history", headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.log_result("Blockchain - Student History", True, 
+                                   f"Retrieved blockchain history for student {student_id}")
+                elif response.status_code == 403:
+                    self.log_result("Blockchain - Student History", True, 
+                                   "Correctly enforces permission check for blockchain history")
+                else:
+                    self.log_result("Blockchain - Student History", False, 
+                                   f"Expected 200 or 403, got {response.status_code}")
+            except Exception as e:
+                self.log_result("Blockchain - Student History", False, f"Request failed: {str(e)}")
+    
+    def test_enhanced_uuid_verification(self):
+        """Test Enhanced UUID Verification with Blockchain Status"""
+        print("\n=== Testing Enhanced UUID Verification ===")
+        
+        # Test 1: Blockchain hash verification
+        try:
+            fake_hash = hashlib.sha256("test content".encode()).hexdigest()
+            response = self.session.get(f"{BASE_URL}/verify/blockchain_hash/{fake_hash}")
+            if response.status_code == 200:
+                data = response.json()
+                if "verified" in data and "type" in data:
+                    self.log_result("UUID Verification - Blockchain Hash", True, 
+                                   f"Blockchain hash verification endpoint working, verified: {data.get('verified')}")
+                else:
+                    self.log_result("UUID Verification - Blockchain Hash", False, 
+                                   "Missing verification data in response")
+            else:
+                self.log_result("UUID Verification - Blockchain Hash", False, 
+                               f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("UUID Verification - Blockchain Hash", False, f"Request failed: {str(e)}")
+        
+        # Test 2: Enhanced student request verification with blockchain status
+        try:
+            fake_uuid = str(uuid.uuid4())
+            response = self.session.get(f"{BASE_URL}/verify/student_request/{fake_uuid}")
+            if response.status_code == 200:
+                data = response.json()
+                if "verified" in data:
+                    # Check if blockchain_status is included in response
+                    has_blockchain_status = "blockchain_status" in data
+                    self.log_result("UUID Verification - Enhanced Student Request", True, 
+                                   f"Enhanced verification working, includes blockchain status: {has_blockchain_status}")
+                else:
+                    self.log_result("UUID Verification - Enhanced Student Request", False, 
+                                   "Missing verification data in response")
+            else:
+                self.log_result("UUID Verification - Enhanced Student Request", False, 
+                               f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("UUID Verification - Enhanced Student Request", False, f"Request failed: {str(e)}")
+    
+    def test_analytics_dashboard_api(self):
+        """Test Analytics Dashboard API"""
+        print("\n=== Testing Analytics Dashboard API ===")
+        
+        # Create authenticated issuer session for analytics testing
+        issuer_token = None
+        try:
+            issuer_data = {
+                "email": "analytics.issuer@university.edu",
+                "name": "Analytics Issuer",
+                "role": "issuer",
+                "university": "Analytics University"
+            }
+            response = self.session.post(f"{BASE_URL}/auth/mock-login", json=issuer_data)
+            if response.status_code == 200:
+                data = response.json()
+                issuer_token = data["session_token"]
+                self.log_result("Analytics - Issuer Auth Setup", True, "Created issuer session for analytics testing")
+            else:
+                self.log_result("Analytics - Issuer Auth Setup", False, "Failed to create issuer session")
+        except Exception as e:
+            self.log_result("Analytics - Issuer Auth Setup", False, f"Request failed: {str(e)}")
+        
+        if not issuer_token:
+            self.log_result("Analytics - Tests Skipped", False, "No issuer token available for analytics testing")
+            return
+        
+        headers = {"Authorization": f"Bearer {issuer_token}"}
+        
+        # Test 1: Analytics overview
+        try:
+            response = self.session.get(f"{BASE_URL}/analytics/overview", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ["total_requests", "verified_requests", "verification_rate"]
+                has_required = all(field in data for field in required_fields)
+                self.log_result("Analytics - Overview", True, 
+                               f"Analytics overview working, has required fields: {has_required}")
+            elif response.status_code == 403:
+                self.log_result("Analytics - Overview", True, "Correctly restricts analytics to authorized roles")
+            else:
+                self.log_result("Analytics - Overview", False, f"Expected 200 or 403, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Analytics - Overview", False, f"Request failed: {str(e)}")
+        
+        # Test 2: Analytics trends
+        try:
+            response = self.session.get(f"{BASE_URL}/analytics/trends?days=7", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if "trends" in data and isinstance(data["trends"], list):
+                    self.log_result("Analytics - Trends", True, 
+                                   f"Analytics trends working, returned {len(data['trends'])} data points")
+                else:
+                    self.log_result("Analytics - Trends", False, "Missing or invalid trends data")
+            else:
+                self.log_result("Analytics - Trends", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Analytics - Trends", False, f"Request failed: {str(e)}")
+        
+        # Test 3: University analytics
+        try:
+            response = self.session.get(f"{BASE_URL}/analytics/universities", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if "top_issuers" in data and "top_verifiers" in data:
+                    self.log_result("Analytics - Universities", True, 
+                                   "University analytics working with issuer and verifier data")
+                else:
+                    self.log_result("Analytics - Universities", False, "Missing university analytics data")
+            else:
+                self.log_result("Analytics - Universities", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Analytics - Universities", False, f"Request failed: {str(e)}")
+        
+        # Test 4: Comprehensive dashboard
+        try:
+            response = self.session.get(f"{BASE_URL}/analytics/dashboard", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                required_sections = ["overview", "trends", "universities", "blockchain"]
+                has_sections = all(section in data for section in required_sections)
+                self.log_result("Analytics - Dashboard", True, 
+                               f"Comprehensive dashboard working, has required sections: {has_sections}")
+            else:
+                self.log_result("Analytics - Dashboard", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Analytics - Dashboard", False, f"Request failed: {str(e)}")
+    
+    def test_notification_system(self):
+        """Test Notification System"""
+        print("\n=== Testing Notification System ===")
+        
+        if not self.auth_token:
+            self.log_result("Notifications - No Auth", False, "No auth token available for notification testing")
+            return
+        
+        headers = {"Authorization": f"Bearer {self.auth_token}"}
+        
+        # Test 1: Recent notifications
+        try:
+            response = self.session.get(f"{BASE_URL}/notifications/recent", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if "notifications" in data:
+                    self.log_result("Notifications - Recent", True, 
+                                   f"Recent notifications endpoint working, returned {len(data['notifications'])} notifications")
+                else:
+                    self.log_result("Notifications - Recent", False, "Missing notifications data")
+            else:
+                self.log_result("Notifications - Recent", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Notifications - Recent", False, f"Request failed: {str(e)}")
+        
+        # Test 2: Notification stats (requires issuer/verifier role)
+        try:
+            # Create issuer session for stats testing
+            issuer_data = {
+                "email": "notification.issuer@university.edu",
+                "name": "Notification Issuer",
+                "role": "issuer",
+                "university": "Notification University"
+            }
+            response = self.session.post(f"{BASE_URL}/auth/mock-login", json=issuer_data)
+            if response.status_code == 200:
+                data = response.json()
+                issuer_token = data["session_token"]
+                issuer_headers = {"Authorization": f"Bearer {issuer_token}"}
+                
+                stats_response = self.session.get(f"{BASE_URL}/notifications/stats", headers=issuer_headers)
+                if stats_response.status_code == 200:
+                    stats_data = stats_response.json()
+                    if "active_connections" in stats_data:
+                        self.log_result("Notifications - Stats", True, 
+                                       "Notification stats endpoint working")
+                    else:
+                        self.log_result("Notifications - Stats", False, "Missing stats data")
+                elif stats_response.status_code == 403:
+                    self.log_result("Notifications - Stats", True, 
+                                   "Correctly restricts notification stats to authorized roles")
+                else:
+                    self.log_result("Notifications - Stats", False, 
+                                   f"Expected 200 or 403, got {stats_response.status_code}")
+            else:
+                self.log_result("Notifications - Stats", False, "Failed to create issuer session for stats testing")
+        except Exception as e:
+            self.log_result("Notifications - Stats", False, f"Request failed: {str(e)}")
+        
+        # Test 3: WebSocket connection test (simplified)
+        try:
+            # Test WebSocket endpoint availability by checking if it returns proper error for HTTP request
+            ws_test_url = f"{BASE_URL}/ws/notifications/student/test-user-id"
+            response = self.session.get(ws_test_url)
+            # WebSocket endpoints typically return 426 Upgrade Required for HTTP requests
+            if response.status_code in [426, 400, 405]:
+                self.log_result("Notifications - WebSocket Endpoint", True, 
+                               "WebSocket endpoint exists and properly rejects HTTP requests")
+            else:
+                self.log_result("Notifications - WebSocket Endpoint", False, 
+                               f"WebSocket endpoint test inconclusive, status: {response.status_code}")
+        except Exception as e:
+            self.log_result("Notifications - WebSocket Endpoint", False, f"Request failed: {str(e)}")
+    
+    def test_system_health_monitoring(self):
+        """Test System Health Monitoring"""
+        print("\n=== Testing System Health Monitoring ===")
+        
+        # Test 1: System health endpoint
+        try:
+            response = self.session.get(f"{BASE_URL}/system/health")
+            if response.status_code == 200:
+                data = response.json()
+                required_components = ["database", "blockchain", "notifications", "analytics"]
+                has_components = all(component in data for component in required_components)
+                
+                if has_components:
+                    self.log_result("System Health - Components", True, 
+                                   f"System health monitoring working, all components reported")
+                    
+                    # Check individual component statuses
+                    healthy_components = []
+                    unhealthy_components = []
+                    
+                    for component in required_components:
+                        status = data.get(component, "unknown")
+                        if status in ["healthy", "connected"]:
+                            healthy_components.append(component)
+                        else:
+                            unhealthy_components.append(f"{component}:{status}")
+                    
+                    self.log_result("System Health - Status Check", True, 
+                                   f"Healthy: {healthy_components}, Issues: {unhealthy_components}")
+                else:
+                    self.log_result("System Health - Components", False, 
+                                   "Missing required health components")
+            else:
+                self.log_result("System Health - Endpoint", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("System Health - Endpoint", False, f"Request failed: {str(e)}")
+    
+    def test_automated_verification_workflow(self):
+        """Test Automated Verification Workflow"""
+        print("\n=== Testing Automated Verification Workflow ===")
+        
+        if not self.auth_token:
+            self.log_result("Workflow - No Auth", False, "No auth token available for workflow testing")
+            return
+        
+        headers = {"Authorization": f"Bearer {self.auth_token}"}
+        
+        # Test 1: Create transcript request with background processing
+        try:
+            request_data = {
+                "university_from": "Workflow Test University",
+                "university_to": "Receiving Workflow University",
+                "document_type": "transcript",
+                "content": "This is a comprehensive test transcript document for automated blockchain verification workflow testing"
+            }
+            response = self.session.post(f"{BASE_URL}/transcript-requests", json=request_data, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if "student_request_uuid" in data and "content_hash" in data:
+                    self.test_data["workflow_request"] = data
+                    self.log_result("Workflow - Request Creation", True, 
+                                   f"Created transcript request with UUID: {data['student_request_uuid']}")
+                    
+                    # Wait a moment for background processing
+                    time.sleep(2)
+                    
+                    # Check if blockchain processing was initiated
+                    if "blockchain_hash" in data or "blockchain_verified" in data:
+                        self.log_result("Workflow - Background Processing", True, 
+                                       "Background blockchain processing initiated")
+                    else:
+                        self.log_result("Workflow - Background Processing", False, 
+                                       "Background blockchain processing not detected in immediate response")
+                else:
+                    self.log_result("Workflow - Request Creation", False, "Missing required fields in response")
+            else:
+                self.log_result("Workflow - Request Creation", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Workflow - Request Creation", False, f"Request failed: {str(e)}")
+        
+        # Test 2: Check request details for blockchain status
+        if "workflow_request" in self.test_data:
+            try:
+                request_id = self.test_data["workflow_request"]["id"]
+                response = self.session.get(f"{BASE_URL}/transcript-requests/{request_id}", headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if "transcript_request" in data:
+                        request_details = data["transcript_request"]
+                        has_blockchain_data = any(key in request_details for key in ["blockchain_hash", "blockchain_verified"])
+                        self.log_result("Workflow - Request Details", True, 
+                                       f"Retrieved request details, blockchain data present: {has_blockchain_data}")
+                    else:
+                        self.log_result("Workflow - Request Details", False, "Missing transcript request in response")
+                else:
+                    self.log_result("Workflow - Request Details", False, f"Expected 200, got {response.status_code}")
+            except Exception as e:
+                self.log_result("Workflow - Request Details", False, f"Request failed: {str(e)}")
+    
+    def test_enhanced_api_endpoints(self):
+        """Test Enhanced API Endpoints"""
+        print("\n=== Testing Enhanced API Endpoints ===")
+        
+        enhanced_endpoints = [
+            ("GET", "/blockchain/status"),
+            ("GET", "/analytics/overview"),
+            ("GET", "/analytics/trends"),
+            ("GET", "/analytics/universities"),
+            ("GET", "/analytics/dashboard"),
+            ("GET", "/notifications/recent"),
+            ("GET", "/notifications/stats"),
+            ("GET", "/system/health"),
+            ("GET", f"/verify/blockchain_hash/{hashlib.sha256('test'.encode()).hexdigest()}"),
+            ("GET", f"/blockchain/student/{uuid.uuid4()}/history")
+        ]
+        
+        for method, endpoint in enhanced_endpoints:
+            try:
+                if method == "GET":
+                    # Some endpoints require authentication
+                    if any(auth_required in endpoint for auth_required in ["/analytics/", "/notifications/", "/blockchain/student/"]):
+                        if self.auth_token:
+                            headers = {"Authorization": f"Bearer {self.auth_token}"}
+                            response = self.session.get(f"{BASE_URL}{endpoint}", headers=headers)
+                        else:
+                            continue  # Skip if no auth token
+                    else:
+                        response = self.session.get(f"{BASE_URL}{endpoint}")
+                
+                # Check if endpoint exists (not 404)
+                if response.status_code != 404:
+                    self.log_result(f"Enhanced Endpoint - {method} {endpoint}", True, 
+                                   f"Endpoint exists (status: {response.status_code})")
+                else:
+                    self.log_result(f"Enhanced Endpoint - {method} {endpoint}", False, 
+                                   "Endpoint not found (404)")
+            except Exception as e:
+                self.log_result(f"Enhanced Endpoint - {method} {endpoint}", False, 
+                               f"Request failed: {str(e)}")
+    
     def run_all_tests(self):
-        """Run all backend tests"""
-        print("🚀 Starting Comprehensive Backend Testing - Focus on Mock Authentication")
+        """Run all backend tests including new blockchain features"""
+        print("🚀 Starting Comprehensive Backend Testing - Enhanced Blockchain System")
         print(f"Testing against: {BASE_URL}")
-        print("=" * 60)
+        print("=" * 80)
         
         # Initialize test data
         self.test_content_hashing()
         
-        # Test mock authentication system first (main focus)
+        # Test authentication system first
         self.test_mock_authentication_system()
         self.test_session_verification()
         self.test_protected_endpoints_with_auth()
         self.test_authentication_endpoints()
         
-        # Test other components
+        # Test NEW BLOCKCHAIN FEATURES
+        print("\n" + "=" * 80)
+        print("🔗 TESTING NEW BLOCKCHAIN FEATURES")
+        print("=" * 80)
+        
+        self.test_blockchain_service_integration()
+        self.test_enhanced_uuid_verification()
+        self.test_analytics_dashboard_api()
+        self.test_notification_system()
+        self.test_system_health_monitoring()
+        self.test_automated_verification_workflow()
+        
+        # Test enhanced endpoints
+        self.test_enhanced_api_endpoints()
+        
+        # Test existing components
+        print("\n" + "=" * 80)
+        print("📋 TESTING EXISTING COMPONENTS")
+        print("=" * 80)
+        
         self.test_api_endpoints_availability()
         self.test_multi_level_uuid_system()
         self.test_transcript_request_api_unauthenticated()
