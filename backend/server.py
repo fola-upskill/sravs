@@ -311,10 +311,10 @@ async def update_user_role(user_id: str, role_data: dict, request: Request):
     )
     return {"message": "Role updated successfully"}
 
-# Transcript Request endpoints
+# Transcript Request endpoints with blockchain integration
 @api_router.post("/transcript-requests", response_model=TranscriptRequest)
-async def create_transcript_request(request_data: TranscriptRequestCreate, request: Request):
-    """Student creates a transcript request"""
+async def create_transcript_request(request_data: TranscriptRequestCreate, request: Request, background_tasks: BackgroundTasks):
+    """Student creates a transcript request with blockchain verification"""
     user = await get_current_user(request)
     if not user or user.role != UserRole.STUDENT:
         raise HTTPException(status_code=403, detail="Only students can create transcript requests")
@@ -334,7 +334,57 @@ async def create_transcript_request(request_data: TranscriptRequestCreate, reque
     )
     
     await db.transcript_requests.insert_one(transcript_request.dict())
+    
+    # Add blockchain verification in background
+    background_tasks.add_task(
+        process_blockchain_verification,
+        transcript_request.dict(),
+        request_data.content
+    )
+    
+    # Send notification to issuers
+    background_tasks.add_task(
+        notification_service.notify_new_transcript_request,
+        transcript_request.dict(),
+        request_data.university_from
+    )
+    
     return transcript_request
+
+async def process_blockchain_verification(request_data: Dict[str, Any], content: str):
+    """Background task to process blockchain verification"""
+    try:
+        # Add verification record to blockchain
+        blockchain_result = await blockchain_service.add_verification_record(
+            request_data["student_id"],
+            content,
+            request_data["document_type"]
+        )
+        
+        if blockchain_result["success"]:
+            # Update request with blockchain data
+            await db.transcript_requests.update_one(
+                {"id": request_data["id"]},
+                {
+                    "$set": {
+                        "blockchain_hash": blockchain_result["transaction_hash"],
+                        "blockchain_verified": True
+                    }
+                }
+            )
+            
+            # Notify about completion
+            await notification_service.notify_verification_complete(
+                request_data,
+                blockchain_result
+            )
+            
+            logger.info(f"Blockchain verification completed for request {request_data['id']}")
+        else:
+            logger.error(f"Blockchain verification failed: {blockchain_result.get('error')}")
+            
+    except Exception as e:
+        logger.error(f"Error in blockchain verification: {e}")
 
 @api_router.get("/transcript-requests", response_model=List[TranscriptRequest])
 async def get_transcript_requests(request: Request, status: Optional[str] = None):
@@ -381,10 +431,10 @@ async def get_transcript_request_details(request_id: str, request: Request):
         "receipt": VerifierReceipt(**receipt) if receipt else None
     }
 
-# Issuer Validation endpoints
+# Enhanced issuer validation with automated notifications  
 @api_router.post("/issuer-validations", response_model=IssuerValidation)
-async def create_issuer_validation(validation_data: IssuerValidationCreate, request: Request):
-    """Issuer validates a transcript request"""
+async def create_issuer_validation(validation_data: IssuerValidationCreate, request: Request, background_tasks: BackgroundTasks):
+    """Issuer validates a transcript request with automated notifications"""
     user = await get_current_user(request)
     if not user or user.role != UserRole.ISSUER:
         raise HTTPException(status_code=403, detail="Only issuers can validate requests")
@@ -413,6 +463,15 @@ async def create_issuer_validation(validation_data: IssuerValidationCreate, requ
     await db.transcript_requests.update_one(
         {"id": validation_data.transcript_request_id},
         {"$set": {"status": new_status}}
+    )
+    
+    # Send notifications
+    action = "approved" if validation_data.is_approved else "rejected"
+    background_tasks.add_task(
+        notification_service.notify_issuer_action,
+        action,
+        transcript_req,
+        validation.dict()
     )
     
     return validation
