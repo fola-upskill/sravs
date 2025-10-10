@@ -514,14 +514,25 @@ async def create_verifier_receipt(receipt_data: VerifierReceiptCreate, request: 
     
     return receipt
 
-# UUID Verification endpoint
+# UUID Verification endpoint with blockchain integration
 @api_router.get("/verify/{uuid_type}/{uuid_value}")
 async def verify_uuid(uuid_type: str, uuid_value: str):
-    """Verify UUID authenticity and get associated data"""
+    """Verify UUID authenticity and get associated data with blockchain verification"""
     if uuid_type == "student_request":
         doc = await db.transcript_requests.find_one({"student_request_uuid": uuid_value})
         if doc:
-            return {"type": "student_request", "data": TranscriptRequest(**doc), "verified": True}
+            # Check blockchain verification if available
+            blockchain_status = None
+            if doc.get("content_hash"):
+                blockchain_result = await blockchain_service.verify_document_on_chain(doc["content_hash"])
+                blockchain_status = blockchain_result
+            
+            return {
+                "type": "student_request", 
+                "data": TranscriptRequest(**doc), 
+                "verified": True,
+                "blockchain_status": blockchain_status
+            }
     elif uuid_type == "issuer_validation":
         doc = await db.issuer_validations.find_one({"issuer_validation_uuid": uuid_value})
         if doc:
@@ -530,8 +541,137 @@ async def verify_uuid(uuid_type: str, uuid_value: str):
         doc = await db.verifier_receipts.find_one({"verifier_receipt_uuid": uuid_value})
         if doc:
             return {"type": "verifier_receipt", "data": VerifierReceipt(**doc), "verified": True}
+    elif uuid_type == "blockchain_hash":
+        # Direct blockchain verification
+        blockchain_result = await blockchain_service.verify_document_on_chain(uuid_value)
+        if blockchain_result["success"]:
+            return {
+                "type": "blockchain_verification",
+                "verified": blockchain_result["verified"],
+                "blockchain_data": blockchain_result
+            }
     
     return {"verified": False, "message": "UUID not found or invalid"}
+
+# Blockchain Status endpoints
+@api_router.get("/blockchain/status")
+async def get_blockchain_status():
+    """Get blockchain connection and status information"""
+    return blockchain_service.get_connection_status()
+
+@api_router.get("/blockchain/student/{student_id}/history")
+async def get_student_blockchain_history(student_id: str, request: Request):
+    """Get complete blockchain verification history for a student"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Check permissions
+    if user.role == UserRole.STUDENT and user.id != student_id:
+        raise HTTPException(status_code=403, detail="Cannot access other students' records")
+    
+    history = await blockchain_service.get_student_verification_history(student_id)
+    return history
+
+# Analytics Dashboard endpoints
+@api_router.get("/analytics/overview")
+async def get_analytics_overview(request: Request, days: int = 30):
+    """Get comprehensive analytics overview for dashboard"""
+    user = await get_current_user(request)
+    if not user or user.role not in [UserRole.ISSUER, UserRole.VERIFIER]:
+        raise HTTPException(status_code=403, detail="Analytics access restricted to issuers and verifiers")
+    
+    if analytics_service:
+        return await analytics_service.get_verification_overview(days)
+    else:
+        return {"error": "Analytics service not available"}
+
+@api_router.get("/analytics/trends")
+async def get_analytics_trends(request: Request, days: int = 30):
+    """Get daily verification trends"""
+    user = await get_current_user(request)
+    if not user or user.role not in [UserRole.ISSUER, UserRole.VERIFIER]:
+        raise HTTPException(status_code=403, detail="Analytics access restricted")
+    
+    if analytics_service:
+        return await analytics_service.get_daily_trends(days)
+    else:
+        return {"error": "Analytics service not available"}
+
+@api_router.get("/analytics/universities")
+async def get_university_analytics(request: Request):
+    """Get analytics by university"""
+    user = await get_current_user(request)
+    if not user or user.role not in [UserRole.ISSUER, UserRole.VERIFIER]:
+        raise HTTPException(status_code=403, detail="Analytics access restricted")
+    
+    if analytics_service:
+        return await analytics_service.get_university_analytics()
+    else:
+        return {"error": "Analytics service not available"}
+
+@api_router.get("/analytics/dashboard")
+async def get_comprehensive_analytics(request: Request):
+    """Get all analytics data for admin dashboard"""
+    user = await get_current_user(request)
+    if not user or user.role not in [UserRole.ISSUER, UserRole.VERIFIER]:
+        raise HTTPException(status_code=403, detail="Analytics access restricted")
+    
+    if analytics_service:
+        return await analytics_service.get_comprehensive_dashboard_data()
+    else:
+        return {"error": "Analytics service not available"}
+
+# Real-time notification endpoints
+@api_router.websocket("/ws/notifications/{user_role}/{user_id}")
+async def websocket_notifications(websocket: WebSocket, user_role: str, user_id: str):
+    """WebSocket endpoint for real-time notifications"""
+    await notification_service.connect_websocket(websocket, user_role, user_id)
+
+@api_router.get("/notifications/recent")
+async def get_recent_notifications(request: Request, limit: int = 20):
+    """Get recent notifications for current user"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    notifications = notification_service.get_recent_notifications(user.role, limit)
+    return {"notifications": notifications}
+
+@api_router.get("/notifications/stats")
+async def get_notification_stats(request: Request):
+    """Get notification system statistics"""
+    user = await get_current_user(request)
+    if not user or user.role not in [UserRole.ISSUER, UserRole.VERIFIER]:
+        raise HTTPException(status_code=403, detail="Stats access restricted")
+    
+    return notification_service.get_notification_stats()
+
+# System health and monitoring
+@api_router.get("/system/health")
+async def get_system_health():
+    """Get overall system health status"""
+    health_status = {
+        "database": "healthy",
+        "blockchain": "unknown", 
+        "notifications": "healthy",
+        "analytics": "healthy" if analytics_service else "unavailable",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Check blockchain connection
+    blockchain_status = blockchain_service.get_connection_status()
+    health_status["blockchain"] = "healthy" if blockchain_status["connected"] else "disconnected"
+    health_status["blockchain_details"] = blockchain_status
+    
+    # Check database
+    try:
+        await db.command("ping")
+        health_status["database"] = "healthy"
+    except Exception as e:
+        health_status["database"] = f"error: {str(e)}"
+    
+    return health_status
 
 # Include the router in the main app
 app.include_router(api_router)
