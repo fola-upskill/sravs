@@ -76,6 +76,8 @@ class TranscriptRequest(BaseModel):
     university_to: str    # Verifier university
     document_type: str = "transcript"
     content_hash: str     # SHA-256 hash for integrity
+    blockchain_hash: Optional[str] = None  # Blockchain transaction hash
+    blockchain_verified: bool = False
     status: RequestStatus = RequestStatus.PENDING
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
