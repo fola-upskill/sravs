@@ -669,6 +669,40 @@ const UUIDVerificationTab = () => {
                   <div className="text-sm">
                     <strong>Created:</strong> {new Date(verificationResult.data.created_at || verificationResult.data.validated_at || verificationResult.data.received_at).toLocaleString()}
                   </div>
+                  
+                  {/* Blockchain Status */}
+                  {verificationResult.blockchain_status && (
+                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <strong className="text-purple-800">Blockchain Verification</strong>
+                      </div>
+                      {verificationResult.blockchain_status.verified ? (
+                        <div className="space-y-1 text-sm">
+                          <div><strong>Status:</strong> <span className="text-green-600">✅ Verified on Blockchain</span></div>
+                          <div><strong>Verified By:</strong> {verificationResult.blockchain_status.verified_by}</div>
+                          <div><strong>Record Type:</strong> {verificationResult.blockchain_status.record_type}</div>
+                          <div><strong>Verified At:</strong> {new Date(verificationResult.blockchain_status.verified_at).toLocaleString()}</div>
+                          <div><strong>Immutable:</strong> <span className="text-purple-600">✓ Cannot be tampered</span></div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-orange-600">
+                          ⚠️ Not yet verified on blockchain
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Legacy UUID verification */}
+                  {verificationResult.data.blockchain_verified && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        🔗 Blockchain Verified
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
               
