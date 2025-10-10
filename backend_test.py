@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend Testing for Student Records Verification System
-Tests all backend APIs including authentication, UUID system, and workflow
+Comprehensive Backend Testing for Enhanced Blockchain-Enabled Student Records System
+Tests all backend APIs including authentication, UUID system, blockchain integration,
+analytics dashboard, notification system, and automated verification workflow
 """
 
 import requests
@@ -10,9 +11,13 @@ import hashlib
 import uuid
 from datetime import datetime
 import time
+import asyncio
+import websockets
+import threading
 
 # Configuration
 BASE_URL = "https://credential-verify-3.preview.emergentagent.com/api"
+WS_URL = "wss://credential-verify-3.preview.emergentagent.com/api"
 TEST_SESSION_ID = "test_session_123"  # Mock session ID for testing
 
 class BackendTester:
