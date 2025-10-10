@@ -297,6 +297,7 @@ const Dashboard = () => {
               </span>
             </div>
             <div className="flex items-center space-x-4">
+              <NotificationCenter user={user} />
               <div className="text-sm text-gray-600">
                 <span className="font-medium">{user?.name}</span>
                 {user?.university && <span className="ml-2">• {user.university}</span>}
@@ -316,7 +317,7 @@ const Dashboard = () => {
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8">
-            {['overview', 'requests', 'verification'].map((tab) => (
+            {['overview', 'requests', 'verification', ...(user?.role !== 'student' ? ['analytics'] : [])].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
