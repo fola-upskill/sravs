@@ -343,13 +343,162 @@ async def update_user_role(user_id: str, role_data: dict, request: Request):
     )
     return {"message": "Role updated successfully"}
 
-# Transcript Request endpoints with blockchain integration
+# Payment endpoints
+@api_router.post("/payments/create-intent")
+async def create_payment_intent(payment_data: PaymentIntentCreate, request: Request):
+    """Create payment intent for transcript request"""
+    user = await get_current_user(request)
+    if not user or user.role != UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Only students can create payment intents")
+    
+    try:
+        # Create payment intent
+        result = await payment_gateway.create_payment_intent(
+            student_id=user.id,
+            student_email=user.email,
+            transcript_count=payment_data.transcript_count,
+            metadata={
+                "university_from": payment_data.university_from,
+                "university_to": payment_data.university_to,
+                "document_type": payment_data.document_type
+            }
+        )
+        
+        if result["success"]:
+            # Store payment record in database
+            payment_record = PaymentRecord(
+                payment_id=result["payment_id"],
+                student_id=user.id,
+                student_email=user.email,
+                amount_details=result["amount_details"],
+                status=PaymentStatus.PENDING
+            )
+            await db.payment_records.insert_one(payment_record.dict())
+            
+            return result
+        else:
+            raise HTTPException(status_code=400, detail="Failed to create payment intent")
+    
+    except Exception as e:
+        logger.error(f"Error creating payment intent: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@api_router.post("/payments/process")
+async def process_payment(payment_request: PaymentProcessRequest, request: Request):
+    """Process payment for transcript request"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Verify payment belongs to current user
+        payment_record = await db.payment_records.find_one({
+            "payment_id": payment_request.payment_id,
+            "student_id": user.id
+        })
+        
+        if not payment_record:
+            raise HTTPException(status_code=404, detail="Payment not found")
+        
+        # Process payment through gateway
+        payment_details = {
+            "card_number": payment_request.card_number,
+            "card_expiry": payment_request.card_expiry,
+            "card_cvc": payment_request.card_cvc,
+            "card_brand": payment_request.card_brand,
+            "cardholder_name": payment_request.cardholder_name
+        }
+        
+        result = await payment_gateway.process_payment(
+            payment_request.payment_id,
+            payment_request.payment_method,
+            payment_details
+        )
+        
+        # Update payment record in database
+        update_data = {"status": PaymentStatus.SUCCESS if result["success"] else PaymentStatus.FAILED}
+        if result["success"]:
+            update_data.update({
+                "transaction_id": result.get("transaction_id"),
+                "payment_method": payment_request.payment_method,
+                "processed_at": datetime.now(timezone.utc)
+            })
+        
+        await db.payment_records.update_one(
+            {"payment_id": payment_request.payment_id},
+            {"$set": update_data}
+        )
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error processing payment: {e}")
+        raise HTTPException(status_code=500, detail="Payment processing failed")
+
+@api_router.get("/payments/{payment_id}/status")
+async def get_payment_status(payment_id: str, request: Request):
+    """Get payment status"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Verify payment belongs to current user (students) or allow issuers/verifiers to check
+    payment_record = await db.payment_records.find_one({"payment_id": payment_id})
+    
+    if not payment_record:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    if user.role == UserRole.STUDENT and payment_record["student_id"] != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get status from gateway
+    gateway_status = await payment_gateway.get_payment_status(payment_id)
+    
+    return {
+        "payment_id": payment_id,
+        "status": payment_record["status"],
+        "amount_details": payment_record["amount_details"],
+        "payment_method": payment_record.get("payment_method"),
+        "transaction_id": payment_record.get("transaction_id"),
+        "created_at": payment_record["created_at"],
+        "processed_at": payment_record.get("processed_at"),
+        "gateway_details": gateway_status
+    }
+
+@api_router.get("/payments/pricing")
+async def get_pricing_info():
+    """Get current pricing information"""
+    pricing = payment_gateway.calculate_total_amount(1)
+    return {
+        "transcript_fee": pricing["base_amount"],
+        "processing_fee": pricing["processing_fee"],
+        "total_per_transcript": pricing["total_amount"],
+        "currency": pricing["currency"],
+        "description": "Fee per transcript verification request"
+    }
+
+# Modified transcript request creation with payment validation
 @api_router.post("/transcript-requests", response_model=TranscriptRequest)
 async def create_transcript_request(request_data: TranscriptRequestCreate, request: Request, background_tasks: BackgroundTasks):
-    """Student creates a transcript request with blockchain verification"""
+    """Student creates a transcript request after successful payment"""
     user = await get_current_user(request)
     if not user or user.role != UserRole.STUDENT:
         raise HTTPException(status_code=403, detail="Only students can create transcript requests")
+    
+    # Verify payment is successful
+    payment_record = await db.payment_records.find_one({
+        "payment_id": request_data.payment_id,
+        "student_id": user.id,
+        "status": PaymentStatus.SUCCESS
+    })
+    
+    if not payment_record:
+        raise HTTPException(status_code=400, detail="Valid payment required before creating transcript request")
+    
+    # Check if payment is already used
+    existing_request = await db.transcript_requests.find_one({"payment_id": request_data.payment_id})
+    if existing_request:
+        raise HTTPException(status_code=400, detail="Payment already used for another transcript request")
     
     # Generate content hash
     content_hash = generate_content_hash(request_data.content)
@@ -362,10 +511,18 @@ async def create_transcript_request(request_data: TranscriptRequestCreate, reque
         university_from=request_data.university_from,
         university_to=request_data.university_to,
         document_type=request_data.document_type,
-        content_hash=content_hash
+        content_hash=content_hash,
+        payment_id=request_data.payment_id,
+        payment_status=PaymentStatus.SUCCESS
     )
     
     await db.transcript_requests.insert_one(transcript_request.dict())
+    
+    # Update payment record with transcript request ID
+    await db.payment_records.update_one(
+        {"payment_id": request_data.payment_id},
+        {"$set": {"transcript_request_id": transcript_request.id}}
+    )
     
     # Add blockchain verification in background
     background_tasks.add_task(
