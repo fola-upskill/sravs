@@ -15,10 +15,11 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 import asyncio
 
-# Import our new services
+# Import payment service
 from services.blockchain_service import blockchain_service
 from services.notification_service import notification_service, NotificationType, NotificationPriority
 from services.analytics_service import initialize_analytics_service, analytics_service
+from services.payment_service import payment_gateway, PaymentStatus, PaymentMethod
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
