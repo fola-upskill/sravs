@@ -67,6 +67,34 @@ class UserCreate(BaseModel):
     role: UserRole
     university: Optional[str] = None
 
+class PaymentRecord(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    payment_id: str  # From payment gateway
+    student_id: str
+    student_email: str
+    transcript_request_id: Optional[str] = None  # Linked after payment success
+    amount_details: Dict[str, Any]
+    status: PaymentStatus
+    payment_method: Optional[PaymentMethod] = None
+    transaction_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    processed_at: Optional[datetime] = None
+    
+class PaymentIntentCreate(BaseModel):
+    transcript_count: int = 1
+    university_from: str
+    university_to: str
+    document_type: str = "transcript"
+
+class PaymentProcessRequest(BaseModel):
+    payment_id: str
+    payment_method: PaymentMethod
+    card_number: Optional[str] = None
+    card_expiry: Optional[str] = None
+    card_cvc: Optional[str] = None
+    card_brand: Optional[str] = "visa"
+    cardholder_name: Optional[str] = None
+
 class TranscriptRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_request_uuid: str = Field(default_factory=lambda: str(uuid.uuid4()))
