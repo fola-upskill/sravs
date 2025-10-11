@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import axios from "axios";
 import NotificationCenter from "./components/NotificationCenter";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import PaymentModal from "./components/PaymentModal";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
