@@ -107,6 +107,8 @@ class TranscriptRequest(BaseModel):
     content_hash: str     # SHA-256 hash for integrity
     blockchain_hash: Optional[str] = None  # Blockchain transaction hash
     blockchain_verified: bool = False
+    payment_id: Optional[str] = None  # Associated payment
+    payment_status: Optional[PaymentStatus] = None
     status: RequestStatus = RequestStatus.PENDING
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
@@ -115,6 +117,7 @@ class TranscriptRequestCreate(BaseModel):
     university_to: str
     document_type: str = "transcript"
     content: str  # Document content to hash
+    payment_id: str  # Required payment ID
 
 class IssuerValidation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
