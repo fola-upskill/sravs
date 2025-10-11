@@ -467,98 +467,166 @@ const Dashboard = () => {
   );
 };
 
-// Create Request Modal Component
+// Create Request Modal Component with Payment Integration
 const CreateRequestModal = ({ onClose, onSuccess }) => {
+  const [step, setStep] = useState(1); // 1: Form, 2: Payment
   const [formData, setFormData] = useState({
     university_from: '',
     university_to: '',
     document_type: 'transcript',
     content: ''
   });
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [completedPaymentId, setCompletedPaymentId] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleFormSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
+    
+    // Validate form
+    if (!formData.university_from || !formData.university_to || !formData.content) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    // Show payment modal
+    setShowPaymentModal(true);
+  };
 
+  const handlePaymentSuccess = (paymentId) => {
+    setCompletedPaymentId(paymentId);
+    setShowPaymentModal(false);
+    
+    // Now create the actual transcript request
+    createTranscriptRequest(paymentId);
+  };
+
+  const createTranscriptRequest = async (paymentId) => {
+    setLoading(true);
     try {
-      await axios.post(`${API}/transcript-requests`, formData, { withCredentials: true });
+      const requestData = {
+        ...formData,
+        payment_id: paymentId
+      };
+      
+      await axios.post(`${API}/transcript-requests`, requestData, { withCredentials: true });
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error creating request:', error);
+      console.error('Error creating transcript request:', error);
+      alert('Error creating request: ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Request New Transcript</h3>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              From University (Issuer)
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.university_from}
-              onChange={(e) => setFormData({...formData, university_from: e.target.value})}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter issuing university name"
-            />
-          </div>
+    <>
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Request New Transcript</h3>
+          
+          {!completedPaymentId ? (
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  From University (Issuer) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.university_from}
+                  onChange={(e) => setFormData({...formData, university_from: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter issuing university name"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              To University (Verifier)
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.university_to}
-              onChange={(e) => setFormData({...formData, university_to: e.target.value})}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter receiving university name"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  To University (Verifier) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.university_to}
+                  onChange={(e) => setFormData({...formData, university_to: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter receiving university name"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Document Content
-            </label>
-            <textarea
-              required
-              value={formData.content}
-              onChange={(e) => setFormData({...formData, content: e.target.value})}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={4}
-              placeholder="Enter document content for hash generation..."
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Document Type
+                </label>
+                <select
+                  value={formData.document_type}
+                  onChange={(e) => setFormData({...formData, document_type: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="transcript">Official Transcript</option>
+                  <option value="diploma">Diploma Verification</option>
+                  <option value="certificate">Certificate Verification</option>
+                </select>
+              </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition duration-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition duration-200 disabled:opacity-50"
-            >
-              {loading ? 'Creating...' : 'Create Request'}
-            </button>
-          </div>
-        </form>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Document Content *
+                </label>
+                <textarea
+                  required
+                  value={formData.content}
+                  onChange={(e) => setFormData({...formData, content: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={4}
+                  placeholder="Enter document details for verification (e.g., degree earned, GPA, graduation date, etc.)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This content will be used to generate a cryptographic hash for blockchain verification
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Next Step:</strong> Payment required ($25.00 + $2.50 processing fee = $27.50 total)
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition duration-200"
+                >
+                  Continue to Payment
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Creating your transcript request...</p>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={handlePaymentSuccess}
+        requestData={formData}
+      />
+    </>
   );
 };
 
