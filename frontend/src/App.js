@@ -436,9 +436,29 @@ const Dashboard = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(request.status)}`}>
-                          {request.status}
-                        </span>
+                        {request.payment_status ? (
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            request.payment_status === 'success' ? 'bg-green-100 text-green-800' :
+                            request.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {request.payment_status === 'success' ? '💳 Paid' :
+                             request.payment_status === 'pending' ? '⏳ Pending' : 
+                             '❌ Failed'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-500">No payment info</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(request.status)}`}>
+                            {request.status}
+                          </span>
+                          {request.blockchain_verified && (
+                            <span className="text-xs text-purple-600">🔗</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-xs font-mono">
