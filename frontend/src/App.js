@@ -675,13 +675,15 @@ const UUIDVerificationTab = () => {
     
     setLoading(true);
     try {
-      // Try different UUID types
-      const types = ['student_request', 'issuer_validation', 'verifier_receipt'];
+      const inputValue = verificationInput.trim();
+      
+      // Try different UUID types and blockchain hash
+      const types = ['student_request', 'issuer_validation', 'verifier_receipt', 'blockchain_hash'];
       let result = null;
       
       for (const type of types) {
         try {
-          const response = await axios.get(`${API}/verify/${type}/${verificationInput}`, { withCredentials: true });
+          const response = await axios.get(`${API}/verify/${type}/${inputValue}`, { withCredentials: true });
           if (response.data.verified) {
             result = { ...response.data, type };
             break;
@@ -691,8 +693,37 @@ const UUIDVerificationTab = () => {
         }
       }
       
+      // If no exact match found, check if it's a partial UUID by searching in database
+      if (!result && inputValue.length >= 8) {
+        try {
+          // Try to find by partial UUID in requests
+          const response = await axios.get(`${API}/transcript-requests`, { withCredentials: true });
+          const requests = response.data;
+          
+          const matchingRequest = requests.find(r => 
+            r.student_request_uuid.startsWith(inputValue) ||
+            r.student_request_uuid.includes(inputValue) ||
+            (r.content_hash && r.content_hash.startsWith(inputValue))
+          );
+          
+          if (matchingRequest) {
+            result = {
+              verified: true,
+              type: 'student_request',
+              data: matchingRequest,
+              message: 'Found by partial match'
+            };
+          }
+        } catch (error) {
+          console.error('Partial search failed:', error);
+        }
+      }
+      
       if (!result) {
-        result = { verified: false, message: "UUID not found or invalid" };
+        result = { 
+          verified: false, 
+          message: "UUID/Hash not found. Please ensure you're using the complete UUID or hash value." 
+        };
       }
       
       setVerificationResult(result);
