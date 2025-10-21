@@ -136,7 +136,10 @@ class BlockchainService:
             
             # Add PoA middleware for test networks
             if self.chain_id != 1:  # Not mainnet
-                self.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+                try:
+                    self.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+                except Exception as e:
+                    logger.warning(f"Could not inject PoA middleware: {e}")
             
             # Check connection
             if not self.w3.is_connected():
