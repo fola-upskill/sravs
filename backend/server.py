@@ -836,6 +836,49 @@ async def get_notification_stats(request: Request):
     
     return notification_service.get_notification_stats()
 
+# Quick test endpoint for UUID and hash verification
+@api_router.get("/test/generate-hash")
+async def test_generate_hash(content: str = "Test content for hash generation"):
+    """Test endpoint to generate and verify hash"""
+    content_hash = generate_content_hash(content)
+    return {
+        "original_content": content,
+        "generated_hash": content_hash,
+        "hash_length": len(content_hash),
+        "hash_type": "SHA-256"
+    }
+
+@api_router.get("/test/verify-sample")
+async def test_verification_sample(request: Request):
+    """Create a sample record for testing verification"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Create a sample transcript request for testing
+    sample_content = f"Test transcript for {user.name} - Generated at {datetime.now(timezone.utc)}"
+    content_hash = generate_content_hash(sample_content)
+    
+    sample_request = TranscriptRequest(
+        student_id=user.id,
+        student_name=user.name,
+        student_email=user.email,
+        university_from="Test University",
+        university_to="Verification University",
+        document_type="test_transcript",
+        content_hash=content_hash,
+        payment_status=PaymentStatus.SUCCESS  # Skip payment for test
+    )
+    
+    await db.transcript_requests.insert_one(sample_request.dict())
+    
+    return {
+        "message": "Sample record created for testing",
+        "student_request_uuid": sample_request.student_request_uuid,
+        "content_hash": content_hash,
+        "verification_instructions": f"You can now verify this record using UUID: {sample_request.student_request_uuid}"
+    }
+
 # System health and monitoring
 @api_router.get("/system/health")
 async def get_system_health():
