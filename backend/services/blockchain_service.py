@@ -8,7 +8,16 @@ import json
 import logging
 from typing import Optional, Dict, Any, List, Tuple
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
+try:
+    from web3.middleware import geth_poa_middleware
+except ImportError:
+    # For newer versions of web3.py
+    try:
+        from web3.middleware.geth_poa import geth_poa_middleware
+    except ImportError:
+        # If still not found, create a dummy middleware
+        def geth_poa_middleware(make_request, web3):
+            return make_request
 from eth_account import Account
 from datetime import datetime, timezone
 import hashlib
