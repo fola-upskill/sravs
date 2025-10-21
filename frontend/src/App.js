@@ -848,14 +848,42 @@ const UUIDVerificationTab = () => {
             </div>
           )}
           
-          <div className="text-sm text-gray-500">
-            <p>UUID verification provides:</p>
-            <ul className="mt-2 space-y-1 ml-4">
-              <li>• Document authenticity confirmation</li>
-              <li>• Complete audit trail visibility</li>
-              <li>• Tamper detection through content hashing</li>
-              <li>• Non-repudiation through multi-party validation</li>
-            </ul>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <h4 className="font-medium text-blue-900 mb-2">Test Verification</h4>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await axios.get(`${API}/test/verify-sample`, { withCredentials: true });
+                    setVerificationInput(response.data.student_request_uuid);
+                    alert(`Test record created! UUID: ${response.data.student_request_uuid} has been entered for you.`);
+                  } catch (error) {
+                    alert('Error creating test record: ' + (error.response?.data?.detail || error.message));
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition duration-200"
+              >
+                Create Test Record & Auto-Fill
+              </button>
+            </div>
+            
+            <div className="text-sm text-gray-500">
+              <p><strong>UUID verification provides:</strong></p>
+              <ul className="mt-2 space-y-1 ml-4">
+                <li>• Document authenticity confirmation</li>
+                <li>• Complete audit trail visibility</li>
+                <li>• Tamper detection through content hashing</li>
+                <li>• Non-repudiation through multi-party validation</li>
+                <li>• Blockchain immutability verification</li>
+              </ul>
+              <p className="mt-3"><strong>Supported formats:</strong></p>
+              <ul className="mt-1 space-y-1 ml-4 text-xs">
+                <li>• Full UUIDs (36 characters)</li>
+                <li>• Content hashes (64-character SHA-256)</li>
+                <li>• Blockchain transaction hashes</li>
+                <li>• Partial UUIDs (minimum 8 characters)</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
