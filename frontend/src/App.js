@@ -462,9 +462,20 @@ const Dashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-xs font-mono">
-                          <div className="text-green-600">
+                          <div className="text-green-600 mb-1" title={request.student_request_uuid}>
                             Request: {request.student_request_uuid.substring(0, 8)}...
                           </div>
+                          {request.blockchain_hash && (
+                            <div className="text-purple-600" title={request.blockchain_hash}>
+                              Blockchain: {request.blockchain_hash.substring(0, 8)}...
+                            </div>
+                          )}
+                          <button 
+                            onClick={() => navigator.clipboard.writeText(request.student_request_uuid)}
+                            className="text-blue-500 hover:text-blue-700 text-xs underline mt-1"
+                          >
+                            Copy Full UUID
+                          </button>
                         </div>
                       </td>
                     </tr>
